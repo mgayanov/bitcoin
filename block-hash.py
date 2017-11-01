@@ -19,6 +19,8 @@ def getBlockHash(version, previous_block, merkle_root, time, bits, nonce):
 
     return hash_[::-1].encode("hex")
 
+
+
 version = 2
 time = 0x53058b35
 bits = 0x19015f53
