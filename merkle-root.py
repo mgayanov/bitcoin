@@ -2,59 +2,40 @@
 
 import hashlib
 
-def isLenEven(list):
-	return len(list) % 2 == 0
+def isLenEven(txHashes):
+	return len(txHashes) % 2 == 0
 
-def duplicateLastElement(list):
-	length = len(list)
-	last_element = list[length - 1 : length].pop()
-	list.append(last_element)
+def duplicateLastElement(txHashes):
+	length = len(txHashes)
+	last_element = txHashes[length - 1 : length].pop()
+	txHashes.append(last_element)
 	
-def prepareList(list):
-	if(not isLenEven(list)):
-		duplicateLastElement(list)
-		
-def getSum(list):
+def prepareList(txHashes):
+	if(not isLenEven(txHashes)):
+		duplicateLastElement(txHashes)
+
+#txHashes are a list of hashes in a string ['txhash0', ... 'txhash1']
+def getMerkleRoot(txHashes):
 	
-	if(len(list) == 1):
-		return list.pop()
+	if(len(txHashes) == 1):
+		return txHashes.pop()
 	
-	prepareList(list)
+	prepareList(txHashes)
 	
-	length = len(list)
+	length = len(txHashes)
 	for i in range(1, length / 2 + 1, 1):
-		item = list.__getitem__(i)
-		item = item.decode('hex')[::-1]
-		list.__delitem__(i)
 		
-		list[i - 1] = list[i - 1].decode('hex')[::-1]
-		list[i - 1] += item
+		item = txHashes[i].decode('hex')[::-1] #bits are need to be reversed before they are hashed
+		txHashes.remove(txHashes[i])
 		
-		list[i - 1] = hashlib.sha256(list[i - 1]).digest()
-		list[i - 1] = hashlib.sha256(list[i - 1]).digest()
-		list[i - 1] = list[i - 1][::-1].encode('hex')
-		#print("%s" % list[i - 1])
+		txHashes[i - 1] = txHashes[i - 1].decode('hex')[::-1] + item
+		
+		txHashes[i - 1] = hashlib.sha256(txHashes[i - 1]).digest()
+		txHashes[i - 1] = hashlib.sha256(txHashes[i - 1]).digest()
+		txHashes[i - 1] = txHashes[i - 1][::-1].encode('hex')
 	
-	return getSum(list)
+	return getMerkleRoot(txHashes)
 
-
-#tx separeted by \x0A from blockchain
-#(already hashed)
-def readTxFromFile(file):
-	result = []
-	with open(file) as desc:
-		result = desc.read().splitlines()
-	return result
-
-def printList(list):
-	length = len(list)
-	for i in range(0, length):
-		print("%s" % list[i])
-	print("%s element(s)" % length)
-
-file = "data/block#489935"
-
-tx = readTxFromFile(file)
 
 txHashes = [
   "00baf6626abc2df808da36a518c69f09b0d2ed0a79421ccfde4f559d2e42128b",
@@ -158,5 +139,5 @@ txHashes = [
   "27a0797cc5b042ba4c11e72a9555d13a67f00161550b32ede0511718b22dbc2c",
 ]		
 
-print("%s" % getSum(txHashes))
+print getMerkleRoot(txHashes)
 
