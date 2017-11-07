@@ -1,33 +1,51 @@
 import hashlib
 import struct
 
-def getTarget(bits):
-    exp = bits >> 24
-    mantisa = bits & 0x00ffffff
-    return "%064x" % (mantisa * (1 << (8 * (exp - 3))))
-
-def getBlockHash(version, previous_block, merkle_root, time, bits, nonce):
-    block_header = struct.pack("<L", version)
-    block_header += previous_block.decode("hex")[::-1]
-    block_header += merkle_root.decode("hex")[::-1]
-    block_header += struct.pack("<L", time)
-    block_header += struct.pack("<L", bits)
-    block_header += struct.pack("<L", nonce)
-
-    hash_ = hashlib.sha256(block_header).digest()
+def getCoinBaseTxHash(version, tx_in_count, tx_in, tx_out_count, tx_out, lock_time):
+    raw_tx = struct.pack('<L', version)
+    raw_tx += struct.pack('b', tx_in_count) # 1 byte
+    raw_tx += tx_in['prev_tx'].decode('hex')
+    
+    raw_tx += struct.pack('<L', tx_in['prev_output_index'])
+    
+    raw_tx += struct.pack('b', tx_in['bytes_in_coinbase']) # 1 byte
+    
+    raw_tx += struct.pack('b', tx_in['bytes_in_heigth']) # 1 byte
+    
+    raw_tx += tx_in['heigth'].decode('hex')[::-1]
+    
+    raw_tx += (tx_in['arbitrary_data'] + tx_in['sequence']).decode('hex')
+    raw_tx += struct.pack('<b', tx_out_count) # 1 byte
+    raw_tx += tx_out['satoshis'].decode('hex')
+    raw_tx += tx_out['p2pkh'].decode('hex')
+    raw_tx += lock_time.decode('hex')
+    
+    print raw_tx.encode('hex')
+    
+    hash_ = hashlib.sha256(raw_tx).digest()
     hash_ = hashlib.sha256(hash_).digest()
 
     return hash_[::-1].encode("hex")
+    
 
-version = 2
-time = 0x53058b35
-bits = 0x19015f53
-previous_block = "000000000000000117c80378b8da0e33559b5997f2ad55e2f7d18ec1975b9717"
-merkle_root = "871714dcbae6c8193a2bb9b2a69fe1c0440399f38d94b3a0f1b447275a29978a"
-nonce = 856192328
+version = 0x01
+tx_in_count = 0x01
 
-target = getTarget(bits)
+tx_in = {}
+tx_in['prev_tx'] = "%064x" % 0x00
+tx_in['prev_output_index'] = 0xffffffff
+tx_in['bytes_in_heigth'] = 0x03
+tx_in['heigth'] = '05014e' #328014 block
+tx_in['arbitrary_data'] = '062f503253482f0472d35454085fffedf2400000f90f54696d652026204865616c74682021'
+tx_in['sequence'] = '00000000'
+tx_in['bytes_in_coinbase'] = len(tx_in['arbitrary_data'] + tx_in['sequence']) / 2
 
-block_hash = getBlockHash(version, previous_block, merkle_root, time, bits, nonce)
+tx_out_count = 0x01
 
-difficulty = (0xffff << 52*4) / float(0x404cb << 48*4)
+tx_out = {}
+tx_out['satoshis'] = '2c37449500000000' #25.04275756 BTC
+tx_out['p2pkh'] = '1976a914a09be8040cbf399926aeb1f470c37d1341f3b46588ac'
+
+lock_time = '00000000'
+
+print getCoinBaseTxHash(version, tx_in_count, tx_in, tx_out_count, tx_out, lock_time)

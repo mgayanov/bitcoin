@@ -25,7 +25,8 @@ def getMerkleRoot(txHashes):
 	length = len(txHashes)
 	for i in range(1, length / 2 + 1, 1):
 		
-		item = txHashes[i].decode('hex')[::-1] #bits are need to be reversed before they are hashed
+		''' bits are need to be reversed before they are hashed '''
+		item = txHashes[i].decode('hex')[::-1] 
 		txHashes.remove(txHashes[i])
 		
 		txHashes[i - 1] = txHashes[i - 1].decode('hex')[::-1] + item
@@ -35,8 +36,8 @@ def getMerkleRoot(txHashes):
 		txHashes[i - 1] = txHashes[i - 1][::-1].encode('hex')
 	
 	return getMerkleRoot(txHashes)
-
-
+'''
+#see https://blockchain.info/ru/block-index/349191
 txHashes = [
   "00baf6626abc2df808da36a518c69f09b0d2ed0a79421ccfde4f559d2e42128b",
   "91c5e9f288437262f218c60f986e8bc10fb35ab3b9f6de477ff0eb554da89dea",
@@ -141,3 +142,4 @@ txHashes = [
 
 print getMerkleRoot(txHashes)
 
+'''
