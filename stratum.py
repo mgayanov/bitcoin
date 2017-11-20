@@ -4,8 +4,10 @@ import json
 import re
 import struct
 import hashlib
-from merkleroot import getMerkleRoot
-from blockhash import getBlockHash
+import merkletree
+import blockhash
+import time
+import threading
 
 class StratumConnection:
 	
@@ -20,8 +22,16 @@ class StratumConnection:
 	def miningSubscribe(self):
 		cmd = """{"id": 1, "method": "mining.subscribe", "params": []}\n"""
 		response = self.send(cmd)
+		print response
 		self.subscription_details = re.findall('(\{[\s\S]+?\})', response)
-	
+
+	def getDifficulty(self):
+		return int(json.loads(self.subscription_details[0])['result'][0][0][1], 16)
+
+	def getTarget(self, difficulty):
+		target = 0x00000000ffff0000000000000000000000000000000000000000000000000000
+		return target / difficulty
+
 	def getExtranonce1(self):
 		return json.loads(self.subscription_details[0])['result'][1]
 	
@@ -57,19 +67,15 @@ class StratumConnection:
 	
 	def getTime(self):
 		return int(json.loads(self.subscription_details[2])['params'][7], 16)
-		
-def getTarget(bits):
-    exp = bits >> 24
-    mantisa = bits & 0x00ffffff
-    return ('%064x' % (mantisa * (1 << (8 * (exp - 3))))).decode('hex')
+
 
 def isSuccess(binhash, bintarget):
 	return binhash < bintarget
 
 def hash2(bin_):
-	return hashlib.sha256(hashlib.sha256(coinbase).digest()).digest()[::-1].encode('hex')
+	return hashlib.sha256(hashlib.sha256(bin_).digest()).digest()[::-1].encode('hex')
 
-
+time1 = time.time()
 pool = "eu.stratum.slushpool.com"
 stratumconn = StratumConnection(pool)
 stratumconn.miningSubscribe()
@@ -82,40 +88,71 @@ coinb2 = stratumconn.getCoinb2()
 merkle_branch = stratumconn.getMerkleBranch()
 version = stratumconn.getVersion()
 bits = stratumconn.getBits()
-time = stratumconn.getTime()
+time_ = stratumconn.getTime()
 previous_block = stratumconn.getPrevHash()
 
-target = getTarget(bits)
+difficulty = stratumconn.getDifficulty()
+target = stratumconn.getTarget(difficulty)
+target = "%.64x" % target
+print "target: %s" % target
 
-#print coinb1
-#print extranonce1
-#print coinb2
-#print extranonce2_size
+print "coinb1: %s" % coinb1
+print "extra1: %s" % extranonce1
+print "coinb2: %s" % coinb2
 
-for i in range(0, 1000):
-	''' get coinbase '''
-	extranonce2 = '%08x' % i
-	coinbase = (coinb1 + extranonce1 + extranonce2 + coinb2).decode('hex')
-	coinbase_txid = hash2(coinbase)
-	#print coinbase_txid
+def getNonce(start, event_for_stop):
+	time1 = time.time()
+	print "thread start"
+	for i in range(start, start + 2000000):
+
+		if(event_for_stop.isSet()):
+			break
+
+		''' coin base '''
+		extranonce2 = '%08x' % i
+		coinbase = (coinb1 + extranonce1 + extranonce2 + coinb2).decode('hex')
+		txcoinbase = hash2(coinbase)
+		#print "txcoinbase: %s" % txcoinbase
 	
-	''' get merkle root '''
-	merkle_branch = [coinbase_txid] + merkle_branch
-	merkle_root = getMerkleRoot(merkle_branch)
+		''' merkle root '''
+		merkle_tree = merkletree.MerkleTree(merkle_branch)
+		merkle_root = merkle_tree.getMerkleRootPool(txcoinbase)
+		#print "merkleroot: %s" % merkle_root
 	
-	''' get block hash '''
-	nonce = 0x00000000
-	blockhash = getBlockHash(version, previous_block, merkle_root, time, bits, nonce)
-	
-	if(isSuccess(blockhash, target)):
-		print blockhash.encode('hex')
-		print extranonce2
-	
+		''' block hash '''
+		nonce = 0x00000000
+		blhash = blockhash.getBlockHash(version, previous_block, merkle_root, time_, bits, nonce)
 
-print extranonce2
+		if(blhash < target.decode('hex')):
+			print "blockhash: %s" % blhash.encode('hex')
+			print "extra2: %s" % extranonce2
+			event_for_stop.set()
+			break
 
-
-
-
+	time2 = time.time()
+	print 'time: %s sec' % int(time2 - time1)
 
 
+event_for_stop = threading.Event()
+
+thread1 = threading.Thread(target=getNonce, args=(0, event_for_stop))
+thread2 = threading.Thread(target=getNonce, args=(0, event_for_stop))
+thread3 = threading.Thread(target=getNonce, args=(0, event_for_stop))
+#thread4 = threading.Thread(target=getNonce, args=(0, event_for_stop))
+#thread5 = threading.Thread(target=getNonce, args=(0, event_for_stop))
+
+thread1.start()
+thread2.start()
+thread3.start()
+#thread4.start()
+#thread5.start()
+
+thread1.join()
+thread2.join()
+thread3.join()
+#thread4.join()
+#thread5.join()
+
+time2 = time.time()
+print 'time: %s sec' % int(time2 - time1)
+print 'finish'
