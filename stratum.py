@@ -8,6 +8,7 @@ import merkletree
 import blockhash
 import time
 import threading
+from multiprocessing import Pool, TimeoutError, Process
 
 class StratumConnection:
 	
@@ -75,37 +76,26 @@ def isSuccess(binhash, bintarget):
 def hash2(bin_):
 	return hashlib.sha256(hashlib.sha256(bin_).digest()).digest()[::-1].encode('hex')
 
-time1 = time.time()
-pool = "eu.stratum.slushpool.com"
-stratumconn = StratumConnection(pool)
-stratumconn.miningSubscribe()
 
-extranonce1 = stratumconn.getExtranonce1()
-extranonce2_size = stratumconn.getExtranonce2Size()
-job_id = stratumconn.getJobId()
-coinb1 = stratumconn.getCoinb1()
-coinb2 = stratumconn.getCoinb2()
-merkle_branch = stratumconn.getMerkleBranch()
-version = stratumconn.getVersion()
-bits = stratumconn.getBits()
-time_ = stratumconn.getTime()
-previous_block = stratumconn.getPrevHash()
 
-difficulty = stratumconn.getDifficulty()
-target = stratumconn.getTarget(difficulty)
-target = "%.64x" % target
-print "target: %s" % target
+def getNonce(start, params, event_for_stop=None):
 
-print "coinb1: %s" % coinb1
-print "extra1: %s" % extranonce1
-print "coinb2: %s" % coinb2
-
-def getNonce(start, event_for_stop):
 	time1 = time.time()
 	print "thread start"
-	for i in range(start, start + 2000000):
 
-		if(event_for_stop.isSet()):
+	coinb1 = params['coinb1']
+	coinb2 = params['coinb2']
+	extranonce1 = params['extranonce1']
+	merkle_branch = params['merkle_branch']
+	version = params['version']
+	previous_block = params['previous_block']
+	time_ = params['time_']
+	bits = params['bits']
+	target = params['target']
+
+	for i in range(start, start + 20000000):
+
+		if((event_for_stop != None and event_for_stop.isSet())):
 			break
 
 		''' coin base '''
@@ -126,33 +116,54 @@ def getNonce(start, event_for_stop):
 		if(blhash < target.decode('hex')):
 			print "blockhash: %s" % blhash.encode('hex')
 			print "extra2: %s" % extranonce2
-			event_for_stop.set()
+			if event_for_stop != None:
+				event_for_stop.set()
 			break
 
 	time2 = time.time()
-	print 'time: %s sec' % int(time2 - time1)
+	print 'thread time: %s sec' % int(time2 - time1)
 
 
-event_for_stop = threading.Event()
+if __name__ == '__main__':
 
-thread1 = threading.Thread(target=getNonce, args=(0, event_for_stop))
-thread2 = threading.Thread(target=getNonce, args=(0, event_for_stop))
-thread3 = threading.Thread(target=getNonce, args=(0, event_for_stop))
-#thread4 = threading.Thread(target=getNonce, args=(0, event_for_stop))
-#thread5 = threading.Thread(target=getNonce, args=(0, event_for_stop))
+	time1 = time.time()
+	pool = "eu.stratum.slushpool.com"
+	stratumconn = StratumConnection(pool)
+	stratumconn.miningSubscribe()
 
-thread1.start()
-thread2.start()
-thread3.start()
-#thread4.start()
-#thread5.start()
+	params = {}
+	params['extranonce1'] = stratumconn.getExtranonce1()
+	extranonce2_size = stratumconn.getExtranonce2Size()
+	job_id = stratumconn.getJobId()
+	params['coinb1'] = stratumconn.getCoinb1()
+	params['coinb2'] = stratumconn.getCoinb2()
+	params['merkle_branch'] = stratumconn.getMerkleBranch()
+	params['version'] = stratumconn.getVersion()
+	params['bits'] = stratumconn.getBits()
+	params['time_'] = stratumconn.getTime()
+	params['previous_block'] = stratumconn.getPrevHash()
 
-thread1.join()
-thread2.join()
-thread3.join()
-#thread4.join()
-#thread5.join()
+	difficulty = stratumconn.getDifficulty()
+	target = stratumconn.getTarget(difficulty)
+	params['target'] = "%.64x" % target
+	print "target: %s" % params['target']
 
-time2 = time.time()
-print 'time: %s sec' % int(time2 - time1)
-print 'finish'
+	print "coinb1: %s" % params['coinb1']
+	print "extra1: %s" % params['extranonce1']
+	print "coinb2: %s" % params['coinb2']
+
+	procs = []
+	proc_cnt = 4
+	for i in range(0, proc_cnt):
+		start = i * 20000000 + 4000000000
+		procs.append(Process(target=getNonce, args=(start, params)))
+
+	for i in range(0, proc_cnt):
+		procs[i].start()
+
+	for i in range(0, proc_cnt):
+		procs[i].join()
+
+	time2 = time.time()
+	print 'all time: %s sec' % int(time2 - time1)
+	print 'finish'

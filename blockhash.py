@@ -1,11 +1,11 @@
 import hashlib
 import struct
-
+'''
 def getTarget(bits):
     exp = bits >> 24
     mantisa = bits & 0x00ffffff
     return '%064x' % (mantisa * (1 << (8 * (exp - 3))))
-
+'''
 #version, time, bits, nonce are hex
 #previous_block, merkle_root are string
 def getBlockHash(version, previous_block, merkle_root, time, bits, nonce):
